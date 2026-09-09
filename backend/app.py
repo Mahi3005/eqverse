@@ -27,6 +27,8 @@ def create_app():
     # ── Database Configuration ──────────────────────────────
     db_url = os.getenv('DATABASE_URL')
     if db_url:
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
         app.config['SQLALCHEMY_DATABASE_URI'] = db_url
     else:
         db_type = os.getenv('DB_TYPE', 'sqlite').lower()
@@ -63,12 +65,24 @@ def create_app():
         import models  # noqa: F401 — registers all models with SQLAlchemy
         db.create_all()
         try:
-            from models import Boss
+            from models import Boss, User
             if Boss.query.count() == 0:
                 from seed_bosses import populate_bosses
                 populate_bosses()
+            # Ensure demo user exists for seamless one-click presentation
+            demo_email = 'dhruv123@gmail.com'
+            if not User.query.filter_by(email=demo_email).first():
+                import bcrypt
+                demo_user = User(
+                    username='Dhruv@test',
+                    email=demo_email,
+                    password_hash=bcrypt.hashpw('password123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                )
+                db.session.add(demo_user)
+                db.session.commit()
+                print(f"[+] Seeded default demo user: {demo_email}")
         except Exception as e:
-            print(f"[DB Warning] Could not auto-seed bosses: {e}")
+            print(f"[DB Warning] Could not auto-seed database: {e}")
 
     # ── Health Check Route ──────────────────────────────────
     @app.route('/api/health')
