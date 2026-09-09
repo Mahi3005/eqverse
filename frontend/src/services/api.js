@@ -3,7 +3,23 @@
  * Handles all HTTP requests to the Flask backend.
  */
 
-const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5000/api';
+let rawBase = import.meta.env.VITE_API_BASE_URL;
+
+// Auto-detect production on Render vs local development
+if (!rawBase || rawBase.includes('localhost') || rawBase.includes('127.0.0.1')) {
+  if (typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')) {
+    rawBase = 'https://eqverse-backend.onrender.com/api';
+  } else {
+    rawBase = rawBase || 'http://127.0.0.1:5000/api';
+  }
+}
+
+// Guarantee https protocol if hostname was passed without it
+if (!rawBase.startsWith('http://') && !rawBase.startsWith('https://')) {
+  rawBase = `https://${rawBase}`;
+}
+
+// Guarantee /api suffix
 const API_BASE_URL = rawBase.endsWith('/api') ? rawBase : `${rawBase.replace(/\/$/, '')}/api`;
 
 /**
