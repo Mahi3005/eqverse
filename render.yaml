@@ -1,0 +1,39 @@
+services:
+  # ── Python Flask Backend Web Service (Free Tier) ─────────────
+  - type: web
+    name: eqverse-backend
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app
+    envVars:
+      - key: DB_TYPE
+        value: sqlite
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.11.0
+
+  # ── React Vite Frontend Static Site (Free Tier) ───────────────
+  - type: web
+    name: eqverse-frontend
+    runtime: static
+    region: oregon
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: eqverse-backend
+          property: host
