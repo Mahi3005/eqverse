@@ -25,12 +25,23 @@ export default function ArenaHome({ user, onStartBattle }) {
   const [selectedBoss, setSelectedBoss] = useState(null);
   const [startingBattle, setStartingBattle] = useState(false);
 
-  // 'all' = All 6 cards open (default for test account)
-  // 'locked' = Simulate 0 XP progression (Riya unlocked, others locked in silhouette)
-  const [unlockMode, setUnlockMode] = useState('all');
+  // Check if current user is the presentation demo account
+  const isDemoAccount = Boolean(
+    user?.email?.trim().toLowerCase() === 'dhruv123@gmail.com' ||
+    user?.username?.trim().toLowerCase() === 'dhruv@test'
+  );
+
+  // 'all' = All 6 cards open (exclusive default for demo account dhruv123@gmail.com)
+  // 'progression' = Genuine player progression based on earned XP and unlocks
+  const [unlockMode, setUnlockMode] = useState(isDemoAccount ? 'all' : 'progression');
   const [manualUnlockedIds, setManualUnlockedIds] = useState(new Set());
   const [revealingIds, setRevealingIds] = useState(new Set());
   const [isRevealingSequence, setIsRevealingSequence] = useState(false);
+
+  useEffect(() => {
+    setUnlockMode(isDemoAccount ? 'all' : 'progression');
+    setManualUnlockedIds(new Set());
+  }, [isDemoAccount, user?.email, user?.username]);
 
   useEffect(() => {
     loadBosses();
@@ -49,9 +60,25 @@ export default function ArenaHome({ user, onStartBattle }) {
   };
 
   const isBossUnlocked = (boss) => {
-    if (unlockMode === 'all') return true;
-    if (manualUnlockedIds.has(boss.id)) return true;
-    return boss.unlock_xp_required === 0;
+    // Demo presentation account override
+    if (isDemoAccount) {
+      if (unlockMode === 'all') return true;
+      if (manualUnlockedIds.has(boss.id)) return true;
+      return boss.unlock_xp_required === 0;
+    }
+
+    // Genuine progression for all other accounts:
+    // 1. Starter boss with 0 XP required (Riya) is always unlocked
+    if (boss.unlock_xp_required === 0) return true;
+
+    // 2. Unlocked via backend (UserUnlock record or server-side XP qualification)
+    if (boss.is_unlocked === true) return true;
+
+    // 3. Current user has reached the required XP threshold
+    const userXp = user?.total_xp || 0;
+    if (userXp >= boss.unlock_xp_required) return true;
+
+    return false;
   };
 
   const filteredBosses = activeCategory === 'all'
@@ -245,61 +272,63 @@ export default function ArenaHome({ user, onStartBattle }) {
         })}
       </div>
 
-      {/* ── 2b. Testing & Animation Controls ──────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-[#141418] border border-[#2A2A32] hud-panel-sm">
-        <div className="flex items-center gap-2.5">
-          <span className="w-2 h-2 rounded-full bg-[#06B6D4] animate-pulse" />
-          <span className="font-display font-black tracking-wider text-xs text-[#E2E2EA] uppercase">
-            ROSTER LAB
-          </span>
-          <span className="text-[11px] text-[#6E6E78]">
-            • {unlockedCount} of {bosses.length} Cards Open ({unlockMode === 'all' ? 'All Unlocked' : 'Locked Preview'})
-          </span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Segmented Mode Selector: All Open vs Preview Locked */}
-          <div className="inline-flex items-center bg-[#0B0B0E] p-0.5 border border-[#2A2A32]">
-            <button
-              onClick={() => {
-                setUnlockMode('all');
-                setManualUnlockedIds(new Set());
-              }}
-              className={`px-3 py-1.5 text-[11px] font-black font-display uppercase tracking-wider transition-all cursor-pointer ${
-                unlockMode === 'all'
-                  ? 'bg-[#22C55E]/20 text-[#22C55E] border border-[#22C55E]/40'
-                  : 'text-[#6E6E78] hover:text-white border border-transparent'
-              }`}
-            >
-              🔓 ALL OPEN
-            </button>
-            <button
-              onClick={() => {
-                setUnlockMode('locked');
-                setManualUnlockedIds(new Set());
-              }}
-              className={`px-3 py-1.5 text-[11px] font-black font-display uppercase tracking-wider transition-all cursor-pointer ${
-                unlockMode === 'locked'
-                  ? 'bg-[#F59E0B]/20 text-[#F59E0B] border border-[#F59E0B]/40'
-                  : 'text-[#6E6E78] hover:text-white border border-transparent'
-              }`}
-            >
-              🔒 PREVIEW LOCKED
-            </button>
+      {/* ── 2b. Testing & Animation Controls (Only visible for presentation demo account) ──── */}
+      {isDemoAccount && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-[#141418] border border-[#2A2A32] hud-panel-sm">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-[#06B6D4] animate-pulse" />
+            <span className="font-display font-black tracking-wider text-xs text-[#E2E2EA] uppercase">
+              ROSTER LAB
+            </span>
+            <span className="text-[11px] text-[#6E6E78]">
+              • {unlockedCount} of {bosses.length} Cards Open ({unlockMode === 'all' ? 'All Unlocked' : 'Locked Preview'})
+            </span>
           </div>
 
-          {/* Cinematic Watch Opening Animation Button */}
-          <button
-            onClick={handleWatchOpeningAnimation}
-            disabled={isRevealingSequence}
-            className="px-4 py-1.5 text-[11px] font-black font-display uppercase tracking-wider bg-gradient-to-r from-[#4F46E5] to-[#7C3AED] text-white hover:brightness-110 shadow-[0_0_15px_rgba(99,102,241,0.4)] transition-all cursor-pointer flex items-center gap-1.5 border border-[#6366F1]/50 disabled:opacity-50"
-            title="Start from locked silhouettes and watch all cards open up with laser scanlines and avatar bursts"
-          >
-            <span>▶</span>
-            <span>{isRevealingSequence ? 'OPENING CARDS...' : 'WATCH CARDS OPEN UP'}</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Segmented Mode Selector: All Open vs Preview Locked */}
+            <div className="inline-flex items-center bg-[#0B0B0E] p-0.5 border border-[#2A2A32]">
+              <button
+                onClick={() => {
+                  setUnlockMode('all');
+                  setManualUnlockedIds(new Set());
+                }}
+                className={`px-3 py-1.5 text-[11px] font-black font-display uppercase tracking-wider transition-all cursor-pointer ${
+                  unlockMode === 'all'
+                    ? 'bg-[#22C55E]/20 text-[#22C55E] border border-[#22C55E]/40'
+                    : 'text-[#6E6E78] hover:text-white border border-transparent'
+                }`}
+              >
+                🔓 ALL OPEN
+              </button>
+              <button
+                onClick={() => {
+                  setUnlockMode('locked');
+                  setManualUnlockedIds(new Set());
+                }}
+                className={`px-3 py-1.5 text-[11px] font-black font-display uppercase tracking-wider transition-all cursor-pointer ${
+                  unlockMode === 'locked'
+                    ? 'bg-[#F59E0B]/20 text-[#F59E0B] border border-[#F59E0B]/40'
+                    : 'text-[#6E6E78] hover:text-white border border-transparent'
+                }`}
+              >
+                🔒 PREVIEW LOCKED
+              </button>
+            </div>
+
+            {/* Cinematic Watch Opening Animation Button */}
+            <button
+              onClick={handleWatchOpeningAnimation}
+              disabled={isRevealingSequence}
+              className="px-4 py-1.5 text-[11px] font-black font-display uppercase tracking-wider bg-gradient-to-r from-[#4F46E5] to-[#7C3AED] text-white hover:brightness-110 shadow-[0_0_15px_rgba(99,102,241,0.4)] transition-all cursor-pointer flex items-center gap-1.5 border border-[#6366F1]/50 disabled:opacity-50"
+              title="Start from locked silhouettes and watch all cards open up with laser scanlines and avatar bursts"
+            >
+              <span>▶</span>
+              <span>{isRevealingSequence ? 'OPENING CARDS...' : 'WATCH CARDS OPEN UP'}</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Error Banner ───────────────────────────────────── */}
       {error && (
@@ -333,7 +362,7 @@ export default function ArenaHome({ user, onStartBattle }) {
               <BossCard
                 boss={boss}
                 isRevealing={revealingIds.has(boss.id)}
-                onUnlockSingle={handleUnlockSingle}
+                onUnlockSingle={isDemoAccount ? handleUnlockSingle : undefined}
                 onSelect={() => handleSelectBoss(boss)}
               />
             </div>
