@@ -5,7 +5,7 @@ import BattleReport from './components/BattleReport';
 import AuthScreen from './components/AuthScreen';
 import Navbar from './components/Navbar';
 import CinematicIntro from './components/CinematicIntro';
-import { isAuthenticated, getStoredUser, logoutUser, getProfile } from './services/api';
+import { isAuthenticated, getStoredUser, logoutUser, getProfile, startBattle } from './services/api';
 
 /**
  * EQverse - AI Roleplay Arena
@@ -92,6 +92,18 @@ function App() {
     setCurrentView('arena');
   };
 
+  const handleRematch = async (bossId) => {
+    try {
+      const data = await startBattle(bossId);
+      setActiveBattle(data);
+      setBattleResult(null);
+      setCurrentView('battle');
+    } catch (err) {
+      console.error('Failed to start rematch:', err);
+      handleBackToArena();
+    }
+  };
+
   // ── Render Current View ────────────────────────────────
   const renderView = () => {
     switch (currentView) {
@@ -120,6 +132,7 @@ function App() {
           <BattleReport
             result={battleResult}
             onBackToArena={handleBackToArena}
+            onRematch={handleRematch}
           />
         );
 

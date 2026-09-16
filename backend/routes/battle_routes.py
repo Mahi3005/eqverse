@@ -246,7 +246,15 @@ def evaluate_battle(session_id):
         return jsonify({'error': 'Unauthorized'}), 403
 
     if session.outcome == 'IN_PROGRESS':
-        return jsonify({'error': 'Battle is still in progress'}), 400
+        # Conclude battle gracefully based on current tension and turns
+        if session.tension <= 35:
+            session.outcome = 'RESOLVED'
+        elif session.tension >= 75:
+            session.outcome = 'ESCALATED'
+        else:
+            session.outcome = 'PARTIAL'
+        session.ended_at = datetime.now(timezone.utc)
+        db.session.commit()
 
     # Check if evaluation already exists
     existing_eval = EQEvaluation.query.filter_by(session_id=session_id).first()
@@ -301,6 +309,38 @@ def evaluate_battle(session_id):
         'evaluation': evaluation.to_dict(),
         'outcome': session.outcome,
         'user_xp': user.total_xp if user else 0,
+    }), 200
+
+
+@battle_bp.route('/conclude/<session_id>', methods=['POST'])
+@jwt_required()
+def conclude_battle(session_id):
+    """
+    Manually conclude an active battle session and mark it ready for evaluation.
+    """
+    user_id = get_jwt_identity()
+    session = db.session.get(BattleSession, session_id)
+
+    if not session:
+        return jsonify({'error': 'Battle session not found'}), 404
+
+    if session.user_id != user_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    if session.outcome == 'IN_PROGRESS':
+        if session.tension <= 35:
+            session.outcome = 'RESOLVED'
+        elif session.tension >= 75:
+            session.outcome = 'ESCALATED'
+        else:
+            session.outcome = 'PARTIAL'
+        session.ended_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+    return jsonify({
+        'message': 'Battle concluded',
+        'outcome': session.outcome,
+        'session_id': session.id,
     }), 200
 
 

@@ -139,6 +139,12 @@ export async function evaluateBattle(sessionId) {
   });
 }
 
+export async function concludeBattle(sessionId) {
+  return apiRequest(`/battle/conclude/${sessionId}`, {
+    method: 'POST',
+  });
+}
+
 export async function fetchBattleHistory() {
   return apiRequest('/battle/history');
 }
