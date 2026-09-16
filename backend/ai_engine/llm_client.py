@@ -213,63 +213,132 @@ Provide 2 to 4 highlight moments. Include both positive moments and areas for im
 
     except Exception as e:
         print(f"[LLM ERROR - Evaluation] {str(e)}")
-        fallback_moments = _build_fallback_moments(conversation_transcript)
-        return {
-            'empathy_score': 7,
-            'self_regulation_score': 6,
-            'active_listening_score': 7,
-            'clarity_score': 6,
-            'boundary_score': 6,
-            'highlight_moments': fallback_moments,
-            'coach_tip': 'Focus on clarifying expectations early and mirroring the counterpart emotion before offering solutions.',
-            'overall_summary': 'Demonstrated steady composure under pressure with good emotional grounding. Continue sharpening boundary clarity.',
-            'xp_awarded': 45,
-        }
+        # If OpenAI key is missing or quota exceeded, perform dynamic heuristic NLP evaluation
+        return _evaluate_via_heuristic_analysis(boss_name, conversation_transcript)
 
 
-def _build_fallback_moments(transcript: str):
-    """Generate meaningful quote moments from user messages in the transcript."""
+def _evaluate_via_heuristic_analysis(boss_name: str, transcript: str) -> dict:
+    """
+    Intelligent NLP conflict analyzer:
+    Evaluates real user messages from the transcript dynamically, scoring
+    actual communicative markers, extracting verbatim user quotes, and
+    generating customized coaching critique.
+    """
     user_quotes = []
     if transcript:
         for line in transcript.split('\n'):
             if line.strip().startswith('User:'):
                 quote_text = line.replace('User:', '').strip()
-                if len(quote_text) > 4:
+                if len(quote_text) > 3:
                     user_quotes.append(quote_text)
 
+    # If user sent no messages, return baseline
+    if not user_quotes:
+        return {
+            'empathy_score': 5,
+            'self_regulation_score': 5,
+            'active_listening_score': 5,
+            'clarity_score': 5,
+            'boundary_score': 5,
+            'highlight_moments': [
+                {
+                    'quote': 'Conflict concluded without active dialogue turns.',
+                    'dimension': 'Active Listening',
+                    'feedback': 'Engage in multi-turn dialogue to demonstrate empathy and explore mutual resolution.',
+                    'type': 'improvement',
+                    'better_alternative': 'I hear your frustration, and I want to understand what happened.',
+                }
+            ],
+            'coach_tip': 'Begin conflicts by validating emotional intensity before attempting problem-solving.',
+            'overall_summary': 'No dialogue turns recorded. Engage directly with counterpart to calibrate EQ metrics.',
+            'xp_awarded': 20,
+        }
+
+    full_user_text = " ".join(user_quotes).lower()
+
+    # Dynamic Scoring Heuristics
+    # 1. Empathy
+    empathy_score = 5
+    empathy_hits = sum(1 for w in ['feel', 'sorry', 'understand', 'frustrat', 'hurt', 'valid', 'perspective', 'care', 'hear you', 'appreciate'] if w in full_user_text)
+    empathy_score = min(10, max(3, empathy_score + empathy_hits))
+
+    # 2. Active Listening
+    listening_score = 5
+    question_count = sum(q.count('?') for q in user_quotes)
+    listening_hits = sum(1 for w in ['what', 'how', 'tell me', 'could you', 'help me understand', 'reflect', 'mean'] if w in full_user_text)
+    listening_score = min(10, max(3, listening_score + question_count + (1 if listening_hits >= 2 else 0)))
+
+    # 3. Self-Regulation
+    regulation_score = 7
+    trigger_words = ['calm down', 'crazy', 'shut up', 'stupid', 'your fault', 'overreacting', 'whatever', 'ridiculous', 'hate']
+    trigger_hits = sum(1 for w in trigger_words if w in full_user_text)
+    if trigger_hits > 0:
+        regulation_score = max(3, regulation_score - trigger_hits * 2)
+    elif len(user_quotes) >= 3:
+        regulation_score = min(9, regulation_score + 1)
+
+    # 4. Clarity
+    clarity_score = 5
+    clarity_hits = sum(1 for w in ['plan', 'agree', 'step', 'timeline', 'expect', 'together', 'specifically', 'need', 'tomorrow', 'focus'] if w in full_user_text)
+    clarity_score = min(10, max(3, clarity_score + clarity_hits))
+
+    # 5. Boundaries
+    boundary_score = 5
+    boundary_hits = sum(1 for w in ['boundary', 'cannot', 'will not', 'respect', 'standard', 'limit', 'honest', 'work together', 'let us'] if w in full_user_text)
+    boundary_score = min(10, max(3, boundary_score + boundary_hits))
+
+    # Identify best positive quote and growth quote
     moments = []
-    if user_quotes:
+    best_quote = user_quotes[0]
+    growth_quote = user_quotes[-1] if len(user_quotes) > 1 else user_quotes[0]
+
+    for q in user_quotes:
+        q_lower = q.lower()
+        if any(w in q_lower for w in ['understand', 'sorry', 'collaborate', 'feel', 'help me', 'care', 'listen']):
+            best_quote = q
+            break
+
+    moments.append({
+        'quote': best_quote,
+        'dimension': 'Active Listening' if '?' in best_quote or 'understand' in best_quote.lower() else 'Empathy',
+        'feedback': f'Effectively acknowledged {boss_name}\'s psychological state without triggering an immediate defensive counter-strike.',
+        'type': 'positive',
+        'better_alternative': None,
+    })
+
+    if len(user_quotes) > 1:
         moments.append({
-            'quote': user_quotes[0],
-            'dimension': 'Active Listening',
-            'feedback': 'Effectively acknowledged the counterpart perspective without defensive escalation.',
-            'type': 'positive',
-            'better_alternative': None,
+            'quote': growth_quote,
+            'dimension': 'Boundary Setting' if 'boundary' in growth_quote.lower() else 'Clarity',
+            'feedback': f'Good communicative effort, but framing could be more assertively anchored to disarm {boss_name}\'s resistance.',
+            'type': 'improvement',
+            'better_alternative': f"I understand where you are coming from. Let's agree on concrete next steps so both of us are aligned.",
         })
-        if len(user_quotes) > 1:
-            moments.append({
-                'quote': user_quotes[-1],
-                'dimension': 'Boundary Setting',
-                'feedback': 'Good intent to de-escalate, though phrasing could anchor firmer collaborative next steps.',
-                'type': 'improvement',
-                'better_alternative': f"I understand your feelings on this. Let's agree on concrete next steps so both of us feel confident.",
-            })
+
+    avg_score = round((empathy_score + regulation_score + listening_score + clarity_score + boundary_score) / 5.0, 1)
+    xp_awarded = int(min(100, max(25, avg_score * 8.5)))
+
+    # Customized coaching tip & summary based on scores
+    if empathy_score >= 8:
+        tip = f"Your emotional validation with {boss_name} was exceptional. Keep practicing crisp boundary setting to avoid over-compromising."
+        summary = f"Strong de-escalation performance against {boss_name}. You led with empathy and lowered tension effectively."
+    elif listening_score <= 5:
+        tip = f"Ask more open-ended questions like 'Help me understand...' to get {boss_name} to reveal underlying concerns."
+        summary = f"Good composure, but incorporating more active inquiries will make {boss_name} feel truly heard."
     else:
-        moments = [
-            {
-                'quote': 'I understand where you are coming from and want to find a constructive solution.',
-                'dimension': 'Empathy',
-                'feedback': 'Strong opening validation disarmed fight-or-flight defensiveness.',
-                'type': 'positive',
-                'better_alternative': None,
-            },
-            {
-                'quote': 'Let us make sure we both walk away feeling aligned.',
-                'dimension': 'Clarity',
-                'feedback': 'Solid attempt at mutual alignment; framing could be more action-oriented.',
-                'type': 'improvement',
-                'better_alternative': 'I value our relationship. Here is what I propose we do next to resolve this immediately.',
-            },
-        ]
-    return moments
+        tip = f"Focus on mirroring {boss_name}'s emotion first, then pivot immediately to a collaborative, actionable proposal."
+        summary = f"Solid conflict management throughout this session with {boss_name}. Continue refining clarity and assertive boundaries."
+
+    return {
+        'empathy_score': empathy_score,
+        'self_regulation_score': regulation_score,
+        'active_listening_score': listening_score,
+        'clarity_score': clarity_score,
+        'boundary_score': boundary_score,
+        'highlight_moments': moments,
+        'coach_tip': tip,
+        'overall_summary': summary,
+        'xp_awarded': xp_awarded,
+    }
+
 

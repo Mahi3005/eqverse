@@ -245,9 +245,20 @@ export default function BattleReport({ result, onBackToArena, onRematch }) {
     return { label: 'GROWTH NEEDED', color: '#EF4444' };
   };
 
+  const PERSONA_CATEGORIES = {
+    riya: 'WORKPLACE',
+    kabir: 'FAMILY',
+    meera: 'FRIENDSHIP',
+    sam: 'ROMANTIC',
+    alex: 'ROMANTIC',
+    mr_sharma: 'WORKPLACE',
+  };
+
+  const resolvedCategory = (boss?.category || (boss?.id ? PERSONA_CATEGORIES[boss.id] : null) || 'CONFLICT ARENA').toUpperCase();
+
   const handleExportSummary = () => {
     const summaryText = `EQVERSE BATTLE EVALUATION REPORT
-Opponent: ${boss?.name || 'AI Persona'} (${boss?.category?.toUpperCase() || 'UNKNOWN'})
+Opponent: ${boss?.name || 'AI Persona'} (${resolvedCategory})
 Outcome: ${outcomeConfig.label}
 Average EQ: ${avgScore}/10 | XP Earned: +${safeEval.xp_awarded} XP
 

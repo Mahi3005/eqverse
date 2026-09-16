@@ -69,6 +69,8 @@ def start_battle():
         'boss': {
             'id': boss['id'],
             'name': boss['name'],
+            'category': boss.get('category', 'workplace'),
+            'core_skill': boss.get('core_skill', 'Conflict De-escalation'),
             'backstory': boss['backstory'],
             'goal': boss['goal'],
             'personality_pattern': boss['personality_pattern'],
